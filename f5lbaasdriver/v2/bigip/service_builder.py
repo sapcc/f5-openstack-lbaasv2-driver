@@ -15,6 +15,7 @@ u"""Service Module for F5 LBaaSv2."""
 # limitations under the License.
 #
 import datetime
+import time
 import json
 
 from oslo_log import helpers as log_helpers
@@ -208,16 +209,25 @@ class LBaaSv2ServiceBuilder(object):
     @log_helpers.log_method_call
     def _get_network_cached(self, context, network_id):
         """Retrieve network from cache or from Neutron."""
+        # ccloud: Sometimes the network segmentation information comes too late.
+        # Therefore we try 6 times with a delay of 10 secs to retrieve something valid
         if network_id not in self.net_cache:
-            network = self.plugin.db._core_plugin.get_network(
-                context,
-                network_id
-            )
-            if 'provider:network_type' not in network:
-                network['provider:network_type'] = 'undefined'
-            if 'provider:segmentation_id' not in network:
-                network['provider:segmentation_id'] = 0
-            self.net_cache[network_id] = network
+            count = 0
+            while count < 6:
+                count += 1
+                network = self.plugin.db._core_plugin.get_network(
+                    context,
+                    network_id
+                )
+                if 'provider:network_type' not in network or 'provider:segmentation_id' not in network:
+                    LOG.warning("ccloud: Network ID %s NOT FOUND. Will try again in 10 seconds." % network_id)
+                    time.sleep(10)
+                    continue
+                else:
+                    self.net_cache[network_id] = network
+                    break
+        if network_id not in self.net_cache:
+            raise Exception("ccloud: Network retrieval failed for 6 times (60 secs) for network ID %s ." % network_id)
 
         return self.net_cache[network_id]
 
