@@ -86,23 +86,28 @@ class LBaaSv2ServiceBuilder(object):
             vip_port = service['loadbalancer']['vip_port']
             network_id = vip_port['network_id']
             service['loadbalancer']['network_id'] = network_id
-            network = self._get_network_cached(
-                context,
-                network_id
-            )
             # Override the segmentation ID and network type for this network
             # if we are running in disconnected service mode
             agent_config = self.deserialize_agent_configurations(
                 agent['configurations'])
-            segment_data = self.disconnected_service.get_network_segment(
-                context, agent_config, network)
-            if segment_data:
-                network['provider:segmentation_id'] = \
-                    segment_data.get('segmentation_id', None)
-                network['provider:network_type'] = \
-                    segment_data.get('network_type', None)
-                network['provider:physical_network'] = \
-                    segment_data.get('physical_network', None)
+            network = self._get_network_cached(
+                context,
+                network_id,
+                agent_config
+            )
+
+            # ccloud: Segment data is now retrieved inside _get_network_cached method to store this informations also inside cache
+
+            # segment_data = self.disconnected_service.get_network_segment(
+            #         context, agent_config, network)
+            #     if segment_data:
+            #         network['provider:segmentation_id'] = \
+            #             segment_data.get('segmentation_id', None)
+            #         network['provider:network_type'] = \
+            #             segment_data.get('network_type', None)
+            #         network['provider:physical_network'] = \
+            #             segment_data.get('physical_network', None)
+
             network_map[network_id] = network
 
             # Check if the tenant can create a loadbalancer on the network.
@@ -134,7 +139,7 @@ class LBaaSv2ServiceBuilder(object):
                 self._get_pools_and_healthmonitors(context, loadbalancer)
 
             service['members'] = self._get_members(
-                context, service['pools'], subnet_map, network_map)
+                context, service['pools'], subnet_map, network_map, agent_config)
 
             service['subnets'] = subnet_map
             service['networks'] = network_map
@@ -147,7 +152,7 @@ class LBaaSv2ServiceBuilder(object):
         return service
 
     @log_helpers.log_method_call
-    def _get_extended_member(self, context, member):
+    def _get_extended_member(self, context, member, agent_config):
         """Get extended member attributes and member networking."""
         member_dict = member.to_dict(pool=False)
         subnet_id = member.subnet_id
@@ -158,7 +163,8 @@ class LBaaSv2ServiceBuilder(object):
         network_id = subnet['network_id']
         network = self._get_network_cached(
             context,
-            network_id
+            network_id,
+            agent_config
         )
 
         member_dict['network_id'] = network_id
@@ -207,29 +213,48 @@ class LBaaSv2ServiceBuilder(object):
         return self.subnet_cache[subnet_id]
 
     @log_helpers.log_method_call
-    def _get_network_cached(self, context, network_id):
+    def _get_network_cached(self, context, network_id, agent_config):
         """Retrieve network from cache or from Neutron."""
-        # ccloud: Sometimes the network segmentation information comes too late.
-        # Therefore we try 6 times with a delay of 10 secs to retrieve something valid
         if network_id not in self.net_cache:
             count = 0
             while count < 6:
                 count += 1
-                network = self.plugin.db._core_plugin.get_network(
-                    context,
-                    network_id
-                )
-                if 'provider:network_type' not in network or 'provider:segmentation_id' not in network:
-                    LOG.warning("ccloud: Network ID %s NOT FOUND. Will try again in 10 seconds." % network_id)
-                    time.sleep(10)
-                    continue
-                else:
-                    self.net_cache[network_id] = network
-                    break
-        if network_id not in self.net_cache:
-            raise Exception("ccloud: Network retrieval failed for 6 times (60 secs) for network ID %s ." % network_id)
+                try:
+                    network = None
+                    network = self.plugin.db._core_plugin.get_network(
+                        context,
+                        network_id
+                    )
+                    segment_data = None
+                    if network:
+                        segment_data = self.disconnected_service.get_network_segment(
+                            context, agent_config, network)
 
-        return self.net_cache[network_id]
+                    if network and segment_data:
+                        LOG.info("ccloud: Network ID and Segment FOUND. Added to cache." % network_id)
+                        network['provider:segmentation_id'] = \
+                            segment_data.get('segmentation_id', None)
+                        network['provider:network_type'] = \
+                            segment_data.get('network_type', None)
+                        network['provider:physical_network'] = \
+                            segment_data.get('physical_network', None)
+
+                        self.net_cache[network_id] = network
+                        break
+                    elif not network:
+                        LOG.warning("ccloud: Network ID %s NOT FOUND. Will try again in some seconds." % network_id)
+                        time.sleep(3)
+                    elif not segment_data:
+                        LOG.warning("ccloud: Segment Data for network ID %s NOT FOUND. Will try again in some seconds." % network_id)
+                        time.sleep(3)
+                except Exception:
+                    pass
+
+        if network_id in self.net_cache:
+            return self.net_cache[network_id]
+        else:
+            LOG.error("ccloud: Network ID %s or related ML2 Segment NOT FOUND. Aborting with Exception." % network_id)
+            raise Exception("ccloud: Network ID %s or related ML2 Segment NOT FOUND. Aborting with Exception." % network_id)
 
     @log_helpers.log_method_call
     def _get_listener(self, context, listener_id):
@@ -462,7 +487,7 @@ class LBaaSv2ServiceBuilder(object):
         return pools, healthmonitors
 
     @log_helpers.log_method_call
-    def _get_members(self, context, pools, subnet_map, network_map):
+    def _get_members(self, context, pools, subnet_map, network_map, agent_config):
         pool_members = []
         if pools:
             members = self.plugin.db.get_pool_members(
@@ -473,7 +498,7 @@ class LBaaSv2ServiceBuilder(object):
             for member in members:
                 # Get extended member attributes, network, and subnet.
                 member_dict, subnet, network = (
-                    self._get_extended_member(context, member)
+                    self._get_extended_member(context, member, agent_config)
                 )
 
                 subnet_map[subnet['id']] = subnet
