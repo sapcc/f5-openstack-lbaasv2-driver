@@ -180,7 +180,7 @@ class LBaaSv2ServiceBuilder(object):
         # we no longer support member port creation
         if len(ports) == 1:
             member_dict['port'] = ports[0]
-            self._populate_member_network(context, member_dict, network)
+            self._populate_member_network(context, member_dict, network, agent_config)
         elif len(ports) == 0:
             LOG.warning("Lbaas member %s has no associated neutron port"
                         % member.address)
@@ -217,10 +217,9 @@ class LBaaSv2ServiceBuilder(object):
         """Retrieve network from cache or from Neutron."""
         if network_id not in self.net_cache:
             count = 0
-            while count < 6:
+            while count < 3:
                 count += 1
                 try:
-                    network = None
                     network = self.plugin.db._core_plugin.get_network(
                         context,
                         network_id
@@ -231,7 +230,6 @@ class LBaaSv2ServiceBuilder(object):
                             context, agent_config, network)
 
                     if network and segment_data:
-                        LOG.info("ccloud: Network ID and Segment FOUND. Added to cache." % network_id)
                         network['provider:segmentation_id'] = \
                             segment_data.get('segmentation_id', None)
                         network['provider:network_type'] = \
@@ -239,18 +237,20 @@ class LBaaSv2ServiceBuilder(object):
                         network['provider:physical_network'] = \
                             segment_data.get('physical_network', None)
 
-                        self.net_cache[network_id] = network
-                        break
+                        LOG.debug("ccloud: Network %s and Segment FOUND. Added to the cache.", (network['id']))
+                        self.net_cache[network['id']] = network
+                        return network
                     elif not network:
-                        LOG.warning("ccloud: Network ID %s NOT FOUND. Will try again in some seconds." % network_id)
+                        LOG.error("ccloud: Network ID %s NOT FOUND. Will try again in some seconds." % network_id)
                         time.sleep(3)
                     elif not segment_data:
-                        LOG.warning("ccloud: Segment Data for network ID %s NOT FOUND. Will try again in some seconds." % network_id)
+                        LOG.error("ccloud: Segment Data for network ID %s NOT FOUND. Will try again in some seconds." % network_id)
                         time.sleep(3)
-                except Exception:
-                    pass
+                except Exception as e:
+                    LOG.error("ccloud: Error in network retrieval. Will try again in some seconds. Exception: %s" % (e))
 
         if network_id in self.net_cache:
+            LOG.debug("ccloud: Network %s and Segment FOUND. Returning from CACHE.", (network['id']))
             return self.net_cache[network_id]
         else:
             LOG.error("ccloud: Network ID %s or related ML2 Segment NOT FOUND. Aborting with Exception." % network_id)
@@ -265,12 +265,11 @@ class LBaaSv2ServiceBuilder(object):
         )
         return listener.to_api_dict()
 
-    def _populate_member_network(self, context, member, network):
+    def _populate_member_network(self, context, member, network, agent_config={}):
         """Add vtep networking info to pool member and update the network."""
         member['vxlan_vteps'] = []
         member['gre_vteps'] = []
 
-        agent_config = {}
         segment_data = self.disconnected_service.get_network_segment(
             context, agent_config, network)
         if segment_data:
