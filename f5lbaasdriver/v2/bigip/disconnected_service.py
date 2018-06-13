@@ -55,6 +55,7 @@ class DisconnectedService(object):
             if (network_segment_physical_network == segment['physical_network'] and
                     segment['network_type'].lower() in supported_encapsulations):
                 data = segment
+                LOG.debug("ccloud: Got network segment: %s" % segment)
                 break
             elif ('provider:network_type' in network and network['provider:network_type'] == 'opflex' and
                   segment['network_type'] == 'vlan'):
@@ -63,8 +64,9 @@ class DisconnectedService(object):
                 break
 
         if not data:
-            LOG.error('ccloud: NO Segment for network FOUND %s' % (network['id']))
-            return None
-        else:
-            LOG.debug('ccloud: Segment for network FOUND %s %s' % (network['id'], data))
-            return data
+            data = {}
+            data['provider:network_type'] = None
+            data['provider:segmentation_id'] = None
+            data['provider:physical_network'] = None
+
+        return data
