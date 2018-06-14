@@ -1,6 +1,6 @@
 # coding=utf-8
 u"""Service Module for F5® LBaaSv2."""
-# Copyright (c) 2014-2018, F5 Networks, Inc.
+# Copyright 2014-2016 F5 Networks Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -426,7 +426,10 @@ class LBaaSv2ServiceBuilder(object):
                 l7_policies=False
             )
             listener_dict['l7_policies'] = \
-                [{'id': l7_policy.id} for l7_policy in listener.l7_policies]
+                [{'id': l7_policy.id,
+                  'name':l7_policy.name,
+                  'provisioning_status':l7_policy.provisioning_status
+                  } for l7_policy in listener.l7_policies]
             if listener.default_pool:
                 listener_dict['default_pool_id'] = listener.default_pool.id
 
@@ -499,7 +502,12 @@ class LBaaSv2ServiceBuilder(object):
                                  session_persistence=False)
 
         pool_dict['members'] = [{'id': member.id} for member in pool.members]
-        pool_dict['l7_policies'] = [{'id': l7_policy.id}
+        pool_dict['listeners'] = [{'id': listener.id}
+                                  for listener in pool.listeners]
+        pool_dict['l7_policies'] = [{'id': l7_policy.id,
+                                     'name':l7_policy.name,
+                                     'provisioning_status':l7_policy.provisioning_status
+                                     }
                                     for l7_policy in pool.l7_policies]
         if pool.session_persistence:
             pool_dict['session_persistence'] = (

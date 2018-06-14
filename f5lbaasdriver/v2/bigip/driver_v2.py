@@ -1,5 +1,5 @@
 # coding=utf-8
-u"""F5 Networks® LBaaSv2 Driver Implementation."""
+u"""F5 Networks LBaaSv2 Driver Implementation."""
 # Copyright (c) 2016-2018, F5 Networks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,6 +37,15 @@ from f5lbaasdriver.v2.bigip import exceptions as f5_exc
 from f5lbaasdriver.v2.bigip import neutron_client
 from f5lbaasdriver.v2.bigip import plugin_rpc
 
+import urllib3
+import requests
+
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 LOG = logging.getLogger(__name__)
 
 OPTS = [
@@ -70,10 +79,12 @@ class F5NoAttachedLoadbalancerException(f5_exc.F5LBaaSv2DriverException):
 
 
 class F5DriverV2(object):
-    u"""F5 Networks® LBaaSv2 Driver."""
+    u"""F5 Networks LBaaSv2 Driver."""
 
     def __init__(self, plugin=None, env=None):
         """Driver initialization."""
+        LOG.debug('F5 LBAAS driver initializing')
+
         if not plugin:
             LOG.error('Required LBaaS Driver and Core Driver Missing')
             sys.exit(1)
@@ -407,9 +418,25 @@ class PoolManager(EntityManager):
     def delete(self, context, pool):
         """Delete a pool."""
 
+        if self._attached_to_policy(context,pool):
+            self.driver.plugin.db.update_status(context, models.PoolV2, pool.id,
+                                    plugin_constants.ACTIVE)
+            raise Exception("Cannot delete pool, attached to policy")
+
+
+
         self.loadbalancer = pool.loadbalancer
         self.api_dict = self._get_pool_dict(pool)
         self._call_rpc(context, pool, 'delete_pool')
+
+    def _attached_to_policy(self, context, pool):
+        query = context.session.query(models.L7Policy)
+        query = query.filter((models.L7Policy).redirect_pool_id==pool.id)
+
+        if query.count() > 0:
+             return True
+
+        return False
 
 
 class MemberManager(EntityManager):
