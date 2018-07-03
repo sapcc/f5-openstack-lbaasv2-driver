@@ -23,7 +23,7 @@ LOG = logging.getLogger(__name__)
 
 class DisconnectedService(object):
     def __init__(self):
-        self.supported_encapsulations = ['vlan']
+        self.supported_encapsulations = [u'vlan']
 
     # Retain this method for future use in case a particular ML2 implementation
     # decouples network_id from physical_network name.  The implementation in
@@ -61,24 +61,18 @@ class DisconnectedService(object):
                 (segment['network_type'].lower() in
                  supported_encapsulations)):
                 data = segment
+                LOG.debug("ccloud: Got network segment: %s" % segment)
                 break
-            elif (network['provider:network_type'] == 'opflex' and
+            elif ('provider:network_type' in network and network['provider:network_type'] == 'opflex' and
                   segment['network_type'] == 'vlan'):
                 data = segment
                 LOG.debug("Got OPFLEX segment: %s" % segment)
                 break
 
         if not data:
-            LOG.debug('Using default segment for network %s' %
-                      (network['id']))
-
-            # neutron is expected to provide this data immediately
-            data = {
-                'segmentation_id': network['provider:segmentation_id']
-            }
-            if 'provider:network_type' in network:
-                data['network_type'] = network['provider:network_type']
-            if 'provider:physical_network' in network:
-                data['physical_network'] = network['provider:physical_network']
+            data = {}
+            data['provider:network_type'] = None
+            data['provider:segmentation_id'] = None
+            data['provider:physical_network'] = None
 
         return data
