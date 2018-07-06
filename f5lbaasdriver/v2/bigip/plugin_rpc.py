@@ -117,7 +117,7 @@ class LBaaSv2PluginCallbacksRPC(object):
             service = self.driver.service_builder.build(
                 context, lb, agent)
         except Exception as e:
-            LOG.exception("ccloud Exception: get_service_by_loadbalancer_id:", e)
+            LOG.error("ccloud Error in get_service_by_loadbalancer_id. ID = %s. Message %s " % (loadbalancer_id, e))
         return service
 
     @log_helpers.log_method_call
