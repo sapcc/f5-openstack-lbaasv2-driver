@@ -97,11 +97,11 @@ class LBaaSv2PluginCallbacksRPC(object):
             self, context, loadbalancer_id=None, host=None):
         """Get the complete service definition by loadbalancer_id."""
         service = {}
-        with context.session.begin(subtransactions=True):
-            LOG.debug('Building service definition entry for %s'
-                      % loadbalancer_id)
+        LOG.debug('Building service definition entry for %s'
+                  % loadbalancer_id)
 
-            try:
+        try:
+            with context.session.begin(subtransactions=True):
                 lb = self.driver.plugin.db.get_loadbalancer(
                     context,
                     id=loadbalancer_id
@@ -110,15 +110,15 @@ class LBaaSv2PluginCallbacksRPC(object):
                     context,
                     loadbalancer_id
                 )
-                # the preceeding get call returns a nested dict, unwind
-                # one level if necessary
-                agent = (agent['agent'] if 'agent' in agent else agent)
-                service = self.driver.service_builder.build(
-                    context, lb, agent)
-            except Exception as e:
-                LOG.error("Exception: get_service_by_loadbalancer_id: %s",
-                          e.message)
-            return service
+            # the preceeding get call returns a nested dict, unwind
+            # one level if necessary
+            agent = (agent['agent'] if 'agent' in agent else agent)
+            service = self.driver.service_builder.build(
+                context, lb, agent)
+        except Exception as e:
+            LOG.error("Exception: get_service_by_loadbalancer_id: %s",
+                      e.message)
+        return service
 
     @log_helpers.log_method_call
     def get_all_loadbalancers(self, context, env, group=None, host=None):
