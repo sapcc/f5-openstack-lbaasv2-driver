@@ -22,6 +22,7 @@ from oslo_log import log as logging
 
 from neutron_lbaas import agent_scheduler
 from neutron_lbaas.extensions import lbaas_agentschedulerv2
+from neutron.agent.common import utils as agent_utils
 
 LOG = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ class TenantScheduler(agent_scheduler.ChanceScheduler):
         for agent in all_agents:
 
             if not plugin.db.is_eligible_agent(active=True, agent=agent):
-                agent_dead = plugin.db.is_agent_down(
+                agent_dead = agent_utils.is_agent_down(
                     agent['heartbeat_timestamp'])
                 if not agent['admin_state_up'] or agent_dead:
                     return_agents.append(agent)

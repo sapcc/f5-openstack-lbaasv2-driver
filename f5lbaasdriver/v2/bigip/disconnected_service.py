@@ -14,8 +14,7 @@
 #
 
 from neutron.db import segments_db
-from neutron.plugins.ml2 import db
-from neutron.plugins.ml2 import models
+from neutron.db.models import segment as models
 
 from oslo_log import log as logging
 
@@ -38,7 +37,7 @@ class DisconnectedService(object):
             for record in records:
                 if record.network_id not in result:
                     result[record.network_id] = []
-                result[record.network_id].append(db._make_segment_dict(record))
+                result[record.network_id].append(segments_db._make_segment_dict(record))
             return result
 
     def get_network_segment(self, context, agent_configuration, network):
