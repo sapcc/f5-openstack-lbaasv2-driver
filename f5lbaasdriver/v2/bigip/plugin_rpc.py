@@ -84,9 +84,11 @@ class LBaaSv2PluginCallbacksRPC(object):
     @log_helpers.log_method_call
     def scrub_dead_agents(self, context, env, group, host=None):
         """Remove all non-alive or admin down agents."""
-        LOG.debug('scrubing dead agent bindings')
+        LOG.debug('scrubbing dead agent bindings for group %s' % group)
         with context.session.begin(subtransactions=True):
             try:
+                # don't set group because otherwise only agent of same group could initiate scrubbing.
+                # scrub method get's group out of a dead agent to find another agent inside same group
                 self.driver.scheduler.scrub_dead_agents(
                     context, self.driver.plugin, env, group=None)
             except Exception as exc:
@@ -645,7 +647,53 @@ class LBaaSv2PluginCallbacksRPC(object):
                 LOG.error("Exception: create_port_on_subnet: %s",
                           e.message)
 
-        return port
+            return port
+
+    @log_helpers.log_method_call
+    def create_port_on_subnet_with_specific_ip(self, context, subnet_id=None,
+                                               mac_address=None, name=None,
+                                               ip_address=None, host=None):
+        """Create port on subnet with specific ip address."""
+        if subnet_id and ip_address:
+            subnet = self.driver.plugin.db._core_plugin.get_subnet(
+                context,
+                subnet_id
+            )
+            if not mac_address:
+                mac_address = attributes.ATTR_NOT_SPECIFIED
+            fixed_ip = {
+                'subnet_id': subnet['id'],
+                'ip_address': ip_address
+            }
+            if not host:
+                host = ''
+            if not name:
+                name = ''
+            port_data = {
+                'tenant_id': subnet['tenant_id'],
+                'name': name,
+                'network_id': subnet['network_id'],
+                'mac_address': mac_address,
+                'admin_state_up': True,
+                'device_id': str(uuid.uuid5(uuid.NAMESPACE_DNS, str(host))),
+                'device_owner': 'network:f5lbaasv2',
+                'status': neutron_const.PORT_STATUS_ACTIVE,
+                'fixed_ips': [fixed_ip]
+            }
+            port_data[portbindings.HOST_ID] = host
+            port_data[portbindings.VIF_TYPE] = 'f5'
+            if ('binding:capabilities' in
+                    portbindings.EXTENDED_ATTRIBUTES_2_0['ports']):
+                port_data['binding:capabilities'] = {'port_filter': False}
+            port = self.driver.plugin.db._core_plugin.create_port(
+                context, {'port': port_data})
+            # Because ML2 marks ports DOWN by default on creation
+            update_data = {
+                'status': neutron_const.PORT_STATUS_ACTIVE
+            }
+            self.driver.plugin.db._core_plugin.update_port(
+                context, port['id'], {'port': update_data})
+            return port
 
     @log_helpers.log_method_call
     def get_port_by_name(self, context, port_name=None):
