@@ -628,8 +628,12 @@ class LBaaSv2PluginCallbacksRPC(object):
                     'fixed_ips': fixed_ips
                 }
 
+                # ccloud: device_id is mandatory now, otherwise exception happens
                 if device_id:
                     port_data['device_id'] = device_id
+                else:
+                    port_data['device_id'] = subnet_id
+
                 port_data[portbindings.HOST_ID] = host
                 port_data[portbindings.VNIC_TYPE] = vnic_type
                 port_data[portbindings.PROFILE] = binding_profile
@@ -637,6 +641,7 @@ class LBaaSv2PluginCallbacksRPC(object):
                 port = self.driver.plugin.db._core_plugin.create_port(
                     context, {'port': port_data})
                 # Because ML2 marks ports DOWN by default on creation
+
                 update_data = {
                     'status': neutron_const.PORT_STATUS_ACTIVE
                 }
@@ -644,8 +649,8 @@ class LBaaSv2PluginCallbacksRPC(object):
                     context, port['id'], {'port': update_data})
 
             except Exception as e:
-                LOG.error("Exception: create_port_on_subnet: %s",
-                          e.message)
+                LOG.error("Exception: create_port_on_subnet: message, port_data: %s , %s" %(e.message, port_data))
+                raise
 
             return port
 
@@ -669,13 +674,14 @@ class LBaaSv2PluginCallbacksRPC(object):
                 host = ''
             if not name:
                 name = ''
+            # ccloud: device_id is mandatory now, otherwise exception happens
             port_data = {
                 'tenant_id': subnet['tenant_id'],
                 'name': name,
                 'network_id': subnet['network_id'],
                 'mac_address': mac_address,
                 'admin_state_up': True,
-                'device_id': str(uuid.uuid5(uuid.NAMESPACE_DNS, str(host))),
+                'device_id': subnet['id'],
                 'device_owner': 'network:f5lbaasv2',
                 'status': neutron_const.PORT_STATUS_ACTIVE,
                 'fixed_ips': [fixed_ip]
@@ -834,8 +840,12 @@ class LBaaSv2PluginCallbacksRPC(object):
                 'status': neutron_const.PORT_STATUS_ACTIVE,
                 'fixed_ips': neutron_const.ATTR_NOT_SPECIFIED
             }
+            # ccloud: device_id is mandatory now, otherwise exception happens
             if device_id:
                 port_data['device_id'] = device_id
+            else:
+                port_data['device_id'] = network_id
+
             port_data[portbindings.HOST_ID] = host
             port_data[portbindings.VNIC_TYPE] = vnic_type
             port_data[portbindings.PROFILE] = binding_profile
