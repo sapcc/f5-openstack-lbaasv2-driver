@@ -553,7 +553,7 @@ class LBaaSv2ServiceBuilder(object):
         if pool.session_persistence:
             pool_dict['session_persistence'] = (
                 pool.session_persistence.to_api_dict())
-
+        LOG.debug("ccloud: torsten %s" % pool_dict)
         return pool_dict
 
     def _l7policy_to_dict(self, l7policy):
