@@ -140,7 +140,20 @@ class LBaaSv2ServiceBuilder(object):
                 service['l7policy_rules'] = self._get_l7policy_rules(
                     context, service['l7policies'])
 
-                return service
+                def add_legacy_tenant_id(obj):
+                    if isinstance(obj, dict):
+                        for k, v in obj.items():
+                            if isinstance(v, dict):
+                                obj[k] = add_legacy_tenant_id(v)
+                            if isinstance(v, list):
+                                obj[k] = [add_legacy_tenant_id(o) for o in v]
+                        if 'project_id' in obj:
+                            obj['tenant_id'] = obj['project_id']
+                    elif isinstance(obj, list):
+                        obj = [add_legacy_tenant_id(o) for o in obj]
+                    return obj
+
+                return add_legacy_tenant_id(service)
 
             # Return nothing in case network retrieval failed
             except Exception as e:
