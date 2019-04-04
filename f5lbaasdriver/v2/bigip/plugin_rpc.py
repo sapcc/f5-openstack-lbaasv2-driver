@@ -441,7 +441,7 @@ class LBaaSv2PluginCallbacksRPC(object):
                     context,
                     member_id
                 )
-                if (member.provisioning_status !=
+                if (member and member.provisioning_status !=
                         neutron_const.PENDING_DELETE):
                     self.driver.plugin.db.update_status(
                         context,
@@ -451,8 +451,7 @@ class LBaaSv2PluginCallbacksRPC(object):
                         operating_status
                     )
             except Exception as e:
-                LOG.error('Exception: update_member_status: %s',
-                          e.message)
+                LOG.warning('update_member_status - Could not update member status: %s', e.message)
 
     @log_helpers.log_method_call
     def member_destroyed(self, context, member_id=None):
