@@ -101,16 +101,19 @@ class LBaaSv2ServiceBuilder(object):
 
                 network_map[network_id] = network
 
+                # ccloud: The check below makes no sense in our use case because we're creating all networks
+                #           dynamically in common. Check only makes use in case of static common network setup via
+                #           agent configuration
                 # Check if the tenant can create a loadbalancer on the network.
-                if (agent and not self._valid_tenant_ids(network,
-                                                         loadbalancer.tenant_id,
-                                                         agent)):
-                    LOG.error("Creating a loadbalancer %s for tenant %s on a"
-                              "  non-shared network %s owned by %s." % (
-                                  loadbalancer.id,
-                                  loadbalancer.tenant_id,
-                                  network['id'],
-                                  network['tenant_id']))
+                # if (agent and not self._valid_tenant_ids(network,
+                #                                          loadbalancer.tenant_id,
+                #                                          agent)):
+                #     LOG.error("Creating a loadbalancer %s for tenant %s on a"
+                #               "  non-shared network %s owned by %s." % (
+                #                   loadbalancer.id,
+                #                   loadbalancer.tenant_id,
+                #                   network['id'],
+                #                   network['tenant_id']))
 
                 # Get the network VTEPs if the network provider type is
                 # either gre or vxlan.
