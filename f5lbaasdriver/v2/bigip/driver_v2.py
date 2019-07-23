@@ -25,7 +25,6 @@ from oslo_utils import importutils
 from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
-from neutron.plugins.common import constants as plugin_constants
 from neutron_lib.api.definitions import portbindings
 from neutron_lib import constants as q_const
 
@@ -241,7 +240,7 @@ class LoadBalancerManager(EntityManager):
                 context,
                 models.LoadBalancer,
                 loadbalancer.id,
-                plugin_constants.ERROR)
+                q_const.ERROR)
             # ccloud: exit with exception in case scheduling failed
             raise
         except Exception as e:
@@ -270,7 +269,7 @@ class LoadBalancerManager(EntityManager):
             driver._handle_driver_error(context,
                                         models.LoadBalancer,
                                         loadbalancer.id,
-                                        plugin_constants.ERROR)
+                                        q_const.ERROR)
         except Exception as e:
             LOG.error("Exception: loadbalancer update: %s" % e.message)
             raise e
@@ -325,7 +324,7 @@ class LoadBalancerManager(EntityManager):
             driver._handle_driver_error(context,
                                         models.LoadBalancer,
                                         loadbalancer.id,
-                                        plugin_constants.ERROR)
+                                        q_const.ERROR)
         except Exception as e:
             LOG.error("Exception: update_loadbalancer_stats: %s" % e.message)
             raise e
@@ -422,7 +421,7 @@ class PoolManager(EntityManager):
 
         if self._attached_to_policy(context,pool):
             self.driver.plugin.db.update_status(context, models.PoolV2, pool.id,
-                                    plugin_constants.ACTIVE)
+                                    q_const.ACTIVE)
             raise Exception("Cannot delete pool, attached to policy")
 
 
